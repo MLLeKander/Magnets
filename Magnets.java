@@ -18,7 +18,6 @@ class Main {
       Scanner scan = new Scanner(System.in);
       while (!b.levelCompleted()) {
          printBoard(b);
-         System.out.print("\n\n");
 
          CardinalDirection dir;
          do {
@@ -29,7 +28,6 @@ class Main {
       }
 
       printBoard(b);
-      System.out.print("\n\n");
 
       System.out.println("You won. Hurray...");
       System.out.println("Score: "+stepCount);
@@ -48,10 +46,10 @@ class Main {
 
    public static CardinalDirection getInput(Scanner scan) {
       while (true) {
-         System.out.print("[wasdq]:");
+         System.out.print("[wasd q]:");
          switch (scan.nextLine().trim()) {
-         //case "": case "_":
-         //   return null;
+         case "": case "_":
+            return null;
          case "w": case "k":
             return CardinalDirection.Up;
          case "d": case "l":
@@ -93,6 +91,8 @@ class Board {
    int rows, cols;
    int playerRow = -1, playerCol = -1;
    int goalRow = -1, goalCol = -1;
+
+   private final static WallEntity WALL = new WallEntity(Force.Block, Force.Block, Force.Block, Force.Block);
 
    public Board(String[] board) {
       char[][] charBoard = new char[board.length][];
@@ -136,6 +136,40 @@ class Board {
       if (goalRow == -1 || playerRow == -1) {
          throw new IllegalArgumentException();
       }
+
+      if (!isWalled()) {
+         int newRows = rows+2, newCols = cols+2;
+         Entity[][] newEntities = new Entity[newRows][newCols];
+
+         Arrays.fill(newEntities[0], WALL);
+         Arrays.fill(newEntities[newRows-1], WALL);
+         for (int row = 1; row < newRows-1; row++) {
+            System.arraycopy(entities[row-1], 0, newEntities[row], 1, cols);
+            newEntities[row][0] = newEntities[row][newCols-1] = WALL;
+         }
+
+         rows = newRows;
+         cols = newCols;
+         entities = newEntities;
+         goalRow++;
+         goalCol++;
+         playerRow++;
+         playerCol++;
+      }
+   }
+
+   private boolean isWalled() {
+      for (int row = 0; row < rows; row++) {
+         if (!(entities[row][0] instanceof WallEntity && entities[row][cols-1] instanceof WallEntity)) {
+            return false;
+         }
+      }
+      for (int col = 0; col < cols; col++) {
+         if (!(entities[0][col] instanceof WallEntity && entities[rows-1][col] instanceof WallEntity)) {
+            return false;
+         }
+      }
+      return true;
    }
 
    public boolean levelCompleted() {
@@ -296,14 +330,19 @@ enum CardinalDirection {
 }
 
 enum Force {
-   Plus('+'), Minus('-'), Passthrough('_'), Block('0');
+   Plus('+'), Minus('-'), Passthrough('_'), Block(' ');
 
    public static Force fromChar(char c) {
       switch (c) {
-      case '+': return Plus;
-      case '-': return Minus;
-      case '_': return Passthrough;
-      case '0': return Block;
+      case '+':
+         return Plus;
+      case '-':
+         return Minus;
+      case '_':
+         return Passthrough;
+      case '0':
+      case ' ':
+         return Block;
       }
       throw new IllegalArgumentException();
    }
@@ -332,6 +371,8 @@ abstract class Entity {
       case '_':
       case 'G':
          return new EmptyEntity();
+      case 'X':
+         return new UnpathableEntity();
       case 'W':
          return new WallEntity(Force.fromChar(repr[0][1]), Force.fromChar(repr[1][2]), Force.fromChar(repr[2][1]), Force.fromChar(repr[1][0]));
       case 'M':
@@ -352,10 +393,17 @@ abstract class Entity {
    public String topRow() { return "   "; }
    public String midRow() { return " "+midChar+" "; }
    public String botRow() { return "   "; }
+
+   @Override
+   public String toString() { return ""+midChar; }
 }
 
 class EmptyEntity extends Entity {
    public EmptyEntity() { super('_'); }
+}
+
+class UnpathableEntity extends Entity {
+   public UnpathableEntity() { super('X'); }
 }
 
 abstract class ForcedEntity extends Entity {
