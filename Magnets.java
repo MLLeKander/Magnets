@@ -22,8 +22,7 @@ class Main {
          CardinalDirection dir;
          do {
             dir = getInput(scan);
-         } while (dir != null && !b.movePlayer(dir));
-         b.step();
+         } while (b.step(dir) == null);
          stepCount++;
       }
 
@@ -47,18 +46,20 @@ class Main {
    public static CardinalDirection getInput(Scanner scan) {
       while (true) {
          System.out.print("[wasd q]:");
-         switch (scan.nextLine().trim()) {
-         case "": case "_":
+         String input = scan.nextLine().trim();
+         if (input.length() == 0) {
             return null;
-         case "w": case "k":
+         }
+         switch (input.charAt(0)) {
+         case 'w': case 'k':
             return CardinalDirection.Up;
-         case "d": case "l":
+         case 'd': case 'l':
             return CardinalDirection.Right;
-         case "s": case "j":
+         case 's': case 'j':
             return CardinalDirection.Down;
-         case "a": case "h":
+         case 'a': case 'h':
             return CardinalDirection.Left;
-         case "q":
+         case 'q':
             System.exit(0);
          }
       }
@@ -86,11 +87,121 @@ class Main {
    }
 }
 
+//class Solver {
+//   public static void printUsage() {
+//      System.out.println("Usage: java Main fileName");
+//      System.exit(-1);
+//   }
+//
+//   private final static CardinalDirection[] ACTIONS = new CardinalDirection[CardinalDirection.values().length+1];
+//   static {
+//      ACTIONS[0] = null;
+//      System.arraycopy(CardinalDirection.values(),0,ACTIONS,1,CardinalDirection.values().length);
+//   }
+//
+//   public static void main(String[] args) throws IOException {
+//      if (args.length != 1) {
+//         printUsage();
+//      }
+//      for (String fileName : args) {
+//         String[] map = Main.getMapFromFile(fileName);
+//         Board b = new Board(map);
+//         System.out.println(fileName+": "+DFS(b));
+//      }
+//   }
+//
+//   private static class State implements Comparable<State> {
+//      int[] points;
+//      public State(Board b) {
+//         points = new int[b.mobiles.length+1];
+//         points[0] = b.playerRow;
+//         points[1] = b.playerCol;
+//         for (int i = 0; i < b.mobiles.length; i++) {
+//            MobileEntity me = b.mobiles[i];
+//            points[2*(i+1)] = me.r;
+//            points[2*(i+1)+2] = me.c;
+//         }
+//      }
+//      public int compareTo(State o) {
+//         assert(points.length == o.points.length);
+//         for (int i = 0; i < points.length; i++) {
+//            if (points[i] != o.points[i]) {
+//               return points[i] - o.points[i];
+//            }
+//         }
+//         return 0;
+//      }
+//
+//      public boolean equals(Object o) {
+//         if (!(o instanceof State)) {
+//            return false;
+//         }
+//         return compareTo((State)o) == 0;
+//      }
+//
+//      public int hashCode() {
+//         // Most likely cargo culting. http://stackoverflow.com/a/892640/250356
+//         int hash = 23;
+//         for (int i : points) {
+//            hash = hash * 31 + i;
+//         }
+//         return hash;
+//      }
+//   }
+//
+//   private static class StackState {
+//      int actionNdx;
+//      ArrayList<Movement> movements;
+//      public StackState(CardinalDirection dir_, ArrayList<Movement> movements_) { dir=dir_; movements=movements_; }
+//      public String toString() { return dir.toString().charAt(0)+""; }
+//
+//      public void undo(Board b) {
+//         for (Movement m : movements) {
+//            b.swap(m.r,m.c,m.r+m.dr,m.c+m.dc);
+//         }
+//         CardinalDirection dir = ACTIONS[actionNdx];
+//         if (dir != null) {
+//            int newPlayerRow = dir.reverse.nextRow(b.playerRow), newPlayerCol = dir.reverse.nextCol(b.playerCol);
+//            b.swap(b.playerRow,b.playerCol,b.newPlayerRow,b.newPlayerCol);
+//            b.playerRow = newPlayerRow;
+//            b.playerCol = newPlayerCol;
+//         }
+//      }
+//   }
+//
+//   private static void unwind(ArrayList<StackState> path, Board b) {
+//      while (path.size() > 0 && path.get(path.size()-1).actionNdx == ACTIONS.length-1) {
+//         StackState s = path.remove(path.size()-1);
+//         s.undo(b);
+//      }
+//   }
+//
+//   public static ArrayList<CardinalDirection> DFS(Board b) {
+//      ArrayList<StackState> path = new ArrayList<StackState>();
+//      Collection<State> visited = new HashSet<State>();
+//
+//      do {
+//         State bstate = new State(board);
+//         if (visited.contains(bstate)) {
+//            
+//         }
+//         CardinalDirection currDir = CardinalDirection.Up;
+//
+//         State s = new State(b);
+//         if (visited.contains(s)) {
+//            continue;
+//         }
+//      } while (path.size() > 0 && !b.levelCompleted());
+//      return path;
+//   }
+//}
+
 class Board {
    Entity[][] entities;
    int rows, cols;
    int playerRow = -1, playerCol = -1;
    int goalRow = -1, goalCol = -1;
+   MobileEntity[] mobiles;
 
    private final static WallEntity WALL = new WallEntity(Force.Block, Force.Block, Force.Block, Force.Block);
 
@@ -106,7 +217,9 @@ class Board {
    }
 
    private void init(char[][] board) {
-      if (board.length % 3 != 0 || board[0].length % 3 != 0) throw new IllegalArgumentException();
+      if (board.length % 3 != 0 || board[0].length % 3 != 0) {
+         throw new IllegalArgumentException();
+      }
       for (char[] row : board) {
          if (row.length != board[0].length) {
             throw new IllegalArgumentException();
@@ -118,24 +231,33 @@ class Board {
       entities = new Entity[rows][cols];
 
       char[][] tmp = new char[3][3];
+      ArrayList<MobileEntity> mobilesList = new ArrayList<MobileEntity>();
       for (int row = 0; row < rows; row++) {
          for (int col = 0; col < cols; col++) {
             for (int i = 0; i < 3; i++) {
                System.arraycopy(board[3*row+i], 3*col, tmp[i], 0, 3);
             }
-            entities[row][col] = Entity.createEntity(tmp);
+            Entity e = Entity.createEntity(tmp);
+            entities[row][col] = e;
             if (tmp[1][1] == 'G') {
                goalRow = row;
                goalCol = col;
             } else if (tmp[1][1] == 'P') {
                playerRow = row;
                playerCol = col;
+            } else if (e instanceof MobileEntity) {
+               MobileEntity me = (MobileEntity)e;
+               me.row = row;
+               me.col = col;
+               mobilesList.add(me);
             }
          }
       }
       if (goalRow == -1 || playerRow == -1) {
          throw new IllegalArgumentException();
       }
+
+      mobiles = mobilesList.toArray(new MobileEntity[mobilesList.size()]);
 
       if (!isWalled()) {
          int newRows = rows+2, newCols = cols+2;
@@ -155,6 +277,10 @@ class Board {
          goalCol++;
          playerRow++;
          playerCol++;
+         for (MobileEntity me : mobiles) {
+            me.row++;
+            me.col++;
+         }
       }
    }
 
@@ -226,13 +352,30 @@ class Board {
       return Utils.bound(0, r, rows) && Utils.bound(0, c, cols) && entities[r][c] instanceof EmptyEntity;
    }
 
-   private void swap(int r1, int c1, int r2, int c2) {
+   public void swap(int r1, int c1, int r2, int c2) {
       Entity tmp = entities[r1][c1];
       entities[r1][c1] = entities[r2][c2];
       entities[r2][c2] = tmp;
+      if (entities[r1][c1] instanceof MobileEntity) {
+         MobileEntity me = (MobileEntity)entities[r1][c1];
+         me.row = r1;
+         me.col = c1;
+      }
+      if (entities[r2][c2] instanceof MobileEntity) {
+         MobileEntity me = (MobileEntity)entities[r2][c2];
+         me.row = r2;
+         me.col = c2;
+      }
    }
 
-   public boolean movePlayer(CardinalDirection dir) {
+   public Collection<Movement> step(CardinalDirection dir) {
+      if (dir != null && !movePlayer(dir)) {
+         return null;
+      }
+      return step();
+   }
+
+   private boolean movePlayer(CardinalDirection dir) {
       int newRow = dir.nextRow(playerRow), newCol = dir.nextCol(playerCol);
       if (!isEmpty(newRow,newCol)) {
          return false;
@@ -245,7 +388,7 @@ class Board {
       return true;
    }
 
-   public Collection<Movement> step() {
+   private Collection<Movement> step() {
       int[][] drs = new int[rows][cols], dcs = new int[rows][cols];
       {
          for (int r = 0; r < rows; r++) {
@@ -429,6 +572,7 @@ class PlayerEntity extends ForcedEntity {
 }
 
 class MobileEntity extends ForcedEntity {
+   int row = -1, col = -1;
    public MobileEntity(Force u, Force r, Force d, Force l) { super(u,r,d,l,'M'); }
    @Override
    boolean isMobile() { return true; }
