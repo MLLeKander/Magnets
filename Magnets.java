@@ -87,114 +87,146 @@ class Main {
    }
 }
 
-//class Solver {
-//   public static void printUsage() {
-//      System.out.println("Usage: java Main fileName");
-//      System.exit(-1);
-//   }
-//
-//   private final static CardinalDirection[] ACTIONS = new CardinalDirection[CardinalDirection.values().length+1];
-//   static {
-//      ACTIONS[0] = null;
-//      System.arraycopy(CardinalDirection.values(),0,ACTIONS,1,CardinalDirection.values().length);
-//   }
-//
-//   public static void main(String[] args) throws IOException {
-//      if (args.length != 1) {
-//         printUsage();
-//      }
-//      for (String fileName : args) {
-//         String[] map = Main.getMapFromFile(fileName);
-//         Board b = new Board(map);
-//         System.out.println(fileName+": "+DFS(b));
-//      }
-//   }
-//
-//   private static class State implements Comparable<State> {
-//      int[] points;
-//      public State(Board b) {
-//         points = new int[b.mobiles.length+1];
-//         points[0] = b.playerRow;
-//         points[1] = b.playerCol;
-//         for (int i = 0; i < b.mobiles.length; i++) {
-//            MobileEntity me = b.mobiles[i];
-//            points[2*(i+1)] = me.r;
-//            points[2*(i+1)+2] = me.c;
-//         }
-//      }
-//      public int compareTo(State o) {
-//         assert(points.length == o.points.length);
-//         for (int i = 0; i < points.length; i++) {
-//            if (points[i] != o.points[i]) {
-//               return points[i] - o.points[i];
-//            }
-//         }
-//         return 0;
-//      }
-//
-//      public boolean equals(Object o) {
-//         if (!(o instanceof State)) {
-//            return false;
-//         }
-//         return compareTo((State)o) == 0;
-//      }
-//
-//      public int hashCode() {
-//         // Most likely cargo culting. http://stackoverflow.com/a/892640/250356
-//         int hash = 23;
-//         for (int i : points) {
-//            hash = hash * 31 + i;
-//         }
-//         return hash;
-//      }
-//   }
-//
-//   private static class StackState {
-//      int actionNdx;
-//      ArrayList<Movement> movements;
-//      public StackState(CardinalDirection dir_, ArrayList<Movement> movements_) { dir=dir_; movements=movements_; }
-//      public String toString() { return dir.toString().charAt(0)+""; }
-//
-//      public void undo(Board b) {
-//         for (Movement m : movements) {
-//            b.swap(m.r,m.c,m.r+m.dr,m.c+m.dc);
-//         }
-//         CardinalDirection dir = ACTIONS[actionNdx];
-//         if (dir != null) {
-//            int newPlayerRow = dir.reverse.nextRow(b.playerRow), newPlayerCol = dir.reverse.nextCol(b.playerCol);
-//            b.swap(b.playerRow,b.playerCol,b.newPlayerRow,b.newPlayerCol);
-//            b.playerRow = newPlayerRow;
-//            b.playerCol = newPlayerCol;
-//         }
-//      }
-//   }
-//
-//   private static void unwind(ArrayList<StackState> path, Board b) {
-//      while (path.size() > 0 && path.get(path.size()-1).actionNdx == ACTIONS.length-1) {
-//         StackState s = path.remove(path.size()-1);
-//         s.undo(b);
-//      }
-//   }
-//
-//   public static ArrayList<CardinalDirection> DFS(Board b) {
-//      ArrayList<StackState> path = new ArrayList<StackState>();
-//      Collection<State> visited = new HashSet<State>();
-//
-//      do {
-//         State bstate = new State(board);
-//         if (visited.contains(bstate)) {
-//            
-//         }
-//         CardinalDirection currDir = CardinalDirection.Up;
-//
-//         State s = new State(b);
-//         if (visited.contains(s)) {
-//            continue;
-//         }
-//      } while (path.size() > 0 && !b.levelCompleted());
-//      return path;
-//   }
-//}
+class Solver {
+   public static void printUsage() {
+      System.out.println("Usage: java Main fileName");
+      System.exit(-1);
+   }
+
+   private final static CardinalDirection[] ACTIONS = new CardinalDirection[CardinalDirection.values().length+1];
+   static {
+      ACTIONS[0] = null;
+      System.arraycopy(CardinalDirection.values(),0,ACTIONS,1,CardinalDirection.values().length);
+   }
+
+   public static void main(String[] args) throws IOException {
+      if (args.length == 0) {
+         printUsage();
+      }
+      for (String fileName : args) {
+         String[] map = Main.getMapFromFile(fileName);
+         Board b = new Board(map);
+         System.out.println(fileName+": "+DFS(b));
+      }
+   }
+
+   private static class BoardState implements Comparable<BoardState> {
+      int[] points;
+      public BoardState(Board b) {
+         points = new int[2*(b.mobiles.length+1)];
+         points[0] = b.playerRow;
+         points[1] = b.playerCol;
+         for (int i = 0; i < b.mobiles.length; i++) {
+            MobileEntity me = b.mobiles[i];
+            points[2*(i+1)] = me.row;
+            points[2*(i+1)+1] = me.col;
+         }
+      }
+      public int compareTo(BoardState o) {
+         assert(points.length == o.points.length);
+         for (int i = 0; i < points.length; i++) {
+            if (points[i] != o.points[i]) {
+               return points[i] - o.points[i];
+            }
+         }
+         return 0;
+      }
+
+      public boolean equals(Object o) {
+         if (!(o instanceof BoardState)) {
+            return false;
+         }
+         return compareTo((BoardState)o) == 0;
+      }
+
+      public int hashCode() {
+         // Most likely cargo culting. http://stackoverflow.com/a/892640/250356
+         int hash = 23;
+         for (int i : points) {
+            hash = hash * 31 + i;
+         }
+         return hash;
+      }
+   }
+
+   private static class StackState {
+      int actionNdx;
+      List<Movement> movements;
+      public StackState(int actionNdx_, List<Movement> movements_) { actionNdx=actionNdx_; movements=movements_; }
+      public String toString() { return (ACTIONS[actionNdx]+"").charAt(0)+""; }
+
+      public void undo(Board b) {
+         for (int i = movements.size()-1; i >= 0; i--) {
+            Movement m = movements.get(i);
+            b.swap(m.r,m.c,m.r+m.dr,m.c+m.dc);
+         }
+         CardinalDirection dir = ACTIONS[actionNdx];
+         if (dir != null) {
+            int newPlayerRow = dir.reverse.nextRow(b.playerRow), newPlayerCol = dir.reverse.nextCol(b.playerCol);
+            b.swap(b.playerRow,b.playerCol,newPlayerRow,newPlayerCol);
+            b.playerRow = newPlayerRow;
+            b.playerCol = newPlayerCol;
+         }
+      }
+   }
+
+   private static void unwind(ArrayList<StackState> stack, Board b) {
+      while (stack.size() > 0 && stack.get(stack.size()-1).actionNdx == ACTIONS.length-1) {
+         stack.remove(stack.size()-1).undo(b);
+      }
+   }
+
+   public static int nextValidAction(int prevActionNdx, Board b) {
+      int nextActionNdx = prevActionNdx+1;
+      for ( ; nextActionNdx < ACTIONS.length; nextActionNdx++) {
+         CardinalDirection action = ACTIONS[nextActionNdx];
+         if (action == null || b.movePlayer(action)) {
+            break;
+         }
+      }
+      return nextActionNdx;
+   }
+
+   public static ArrayList<StackState> DFS(Board board) {
+      ArrayList<StackState> stack = new ArrayList<StackState>();
+      Collection<BoardState> visited = new HashSet<BoardState>();
+
+      visited.add(new BoardState(board));
+
+      int prospectiveActionNdx = 0;
+      while (true) {
+         CardinalDirection action = ACTIONS[prospectiveActionNdx];
+         if (action == null || board.movePlayer(action)) {
+            StackState ss = new StackState(prospectiveActionNdx, board.step());
+            BoardState bs = new BoardState(board);
+            stack.add(ss);
+            if (visited.contains(bs)) {
+               prospectiveActionNdx = ACTIONS.length;
+            } else {
+               prospectiveActionNdx = 0;
+               visited.add(bs);
+               if (board.levelCompleted()) {
+                  break;
+               }
+            }
+         } else {
+            prospectiveActionNdx++;
+         }
+
+         if (prospectiveActionNdx == ACTIONS.length) {
+            unwind(stack, board);
+            if (stack.size() == 0) {
+               break;
+            }
+            StackState s = stack.remove(stack.size()-1);
+            s.undo(board);
+            prospectiveActionNdx = s.actionNdx + 1;
+         }
+      }
+
+      return stack;
+   }
+}
 
 class Board {
    Entity[][] entities;
@@ -368,14 +400,14 @@ class Board {
       }
    }
 
-   public Collection<Movement> step(CardinalDirection dir) {
+   public List<Movement> step(CardinalDirection dir) {
       if (dir != null && !movePlayer(dir)) {
          return null;
       }
       return step();
    }
 
-   private boolean movePlayer(CardinalDirection dir) {
+   public boolean movePlayer(CardinalDirection dir) {
       int newRow = dir.nextRow(playerRow), newCol = dir.nextCol(playerCol);
       if (!isEmpty(newRow,newCol)) {
          return false;
@@ -388,7 +420,7 @@ class Board {
       return true;
    }
 
-   private Collection<Movement> step() {
+   public List<Movement> step() {
       int[][] drs = new int[rows][cols], dcs = new int[rows][cols];
       {
          for (int r = 0; r < rows; r++) {
@@ -415,7 +447,7 @@ class Board {
          for (int r = 0; r < rows; r++) {
             for (int c = 0; c < cols; c++) {
                int dr = drs[r][c], dc = dcs[r][c];
-               if (isEmpty(r+dr,c+dc)) {
+               if ((dr != 0 || dc != 0) && isEmpty(r+dr,c+dc)) {
                   movements.add(new Movement(entities[r][c], r, c, dr, dc));
                   swap(r,c,r+dr,c+dc);
                }
@@ -437,6 +469,7 @@ class Movement {
    int r, c;
    int dr, dc;
    public Movement(Entity entity_, int r_, int c_, int dr_, int dc_) { entity=entity_; r=r_; c=c_; dr=dr_; dc=dc_; }
+   public String toString() { return String.format("(%d%+d,%d%+d)",r,dr,c,dc); }
 }
 
 enum CardinalDirection {
